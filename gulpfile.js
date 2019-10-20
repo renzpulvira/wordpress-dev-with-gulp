@@ -9,51 +9,36 @@ const postcss = require("gulp-postcss");
 const rename = require("gulp-rename");
 const gutil = require("gulp-util");
 const ftp = require("vinyl-ftp");
+const imagemin = require("gulp-imagemin");
+const uglify = require("gulp-uglify");
 
+// FTP Configuration
 const ftpConfig = {
-  host: "ftp.testingwebsite.tech",
-  user: "u878511404.renz",
-  pass: "K1&`rJxd",
+  host: "myHost",
+  user: "myUsername",
+  pass: "myPassword",
   remoteFolder: "/wp-content/themes/myTheme",
-  localFilesGlob: ["./**/*"]
+  siteUrl: "yoursite.dev"
 };
+
+var globs = [
+  "assets/**",
+  "gulp-js/**",
+  "gulp-scss/**",
+  "inc/**",
+  "js/**",
+  "languages/**",
+  "template-parts/**",
+  "*",
+  "!/gulpfile.js",
+  "!node_modules/**"
+];
 
 const files = {
   scssPath: "./gulp-scss/**/*.scss",
-  jsPath: "./gulp-js/*.js"
+  jsPath: "./gulp-js/*.js",
+  assetsPath: "./assets/*"
 };
-
-function getFtpConn() {
-  return ftp.create({
-    host: ftpConfig.host,
-    user: ftpConfig.user,
-    password: ftpConfig.pass,
-    parallel: 10,
-    log: gutil.log
-  });
-}
-
-function onInitDeploy() {
-  var conn = getFtpConn();
-
-  var globs = [
-    "assets/**",
-    "gulp-js/**",
-    "gulp-scss/**",
-    "inc/**",
-    "js/**",
-    "languages/**",
-    "layouts/**",
-    "template-parts/**",
-    "*",
-    "!node_modules/**",
-    "!node_modules"
-  ];
-
-  return src(globs, { base: ".", buffer: false })
-    .pipe(conn.newer(ftpConfig.remoteFolder))
-    .pipe(conn.dest(ftpConfig.remoteFolder));
-}
 
 function scssTask() {
   return src(files.scssPath)
@@ -66,10 +51,6 @@ function scssTask() {
     .pipe(bs.reload({ stream: true }));
 }
 
-function reload() {
-  bs.reload();
-}
-
 function jsTask() {
   return src(files.jsPath)
     .pipe(
@@ -77,26 +58,96 @@ function jsTask() {
         presets: ["@babel/preset-env"]
       })
     )
+    .pipe(uglify())
     .pipe(rename("script.js"))
     .pipe(dest("./"))
     .pipe(bs.reload({ stream: true }));
 }
 
-function watchFiles() {
-  bs.init({
-    server: {
-      baseDir: "./"
-    }
+function getConn() {
+  return ftp.create({
+    host: ftpConfig.host,
+    user: ftpConfig.user,
+    password: ftpConfig.pass,
+    parallel: 10,
+    log: gutil.log
   });
-  watch("gulp-scss/**/*.scss").on("change", reload);
-  watch("./*").on("change", event => {
-    var conn = getFtpConn();
-
-    return src([event], { base: ".", buffer: false })
-      .pipe(conn.newer(ftpConfig.remoteFolder))
-      .pipe(conn.dest(ftpConfig.remoteFolder));
-  });
-  watch("./gulp-js/*.js").on("change", reload);
 }
 
-exports.default = parallel(watchFiles, onInitDeploy);
+function deploy() {
+  var conn = getConn();
+
+  return src(globs, { base: ".", buffer: false })
+    .pipe(conn.newer(ftpConfig.remoteFolder))
+    .pipe(conn.dest(ftpConfig.remoteFolder));
+}
+
+function optimize() {
+  return src(files.assetsPath)
+    .pipe(
+      imagemin([
+        imagemin.gifsicle({ interlaced: true }),
+        imagemin.jpegtran({ progressive: true }),
+        imagemin.optipng({ optimizationLevel: 5 }),
+        imagemin.svgo({
+          plugins: [{ removeViewBox: true }, { cleanupIDs: false }]
+        })
+      ])
+    )
+    .pipe(dest("optimized/"));
+}
+
+function watchFiles() {
+  var conn = getConn();
+
+  bs.init({
+    proxy: {
+      target: ftpConfig.siteUrl
+    }
+  });
+
+  // Watch Root files
+  watch(["./*"]).on("change", event => {
+    bs.reload();
+    return src([event], { base: ".", buffer: false })
+      .pipe(conn.newer(ftpConfig.remoteFolder))
+      .pipe(conn.dest(ftpConfig.remoteFolder))
+
+      .on("error", function(err) {
+        console.log(err.toString());
+
+        this.emit("end");
+      });
+  });
+
+  // Watch Js files
+  watch([files.jsPath], jsTask).on("change", event => {
+    bs.reload();
+    return src([event], { base: ".", buffer: false })
+      .pipe(conn.newer(ftpConfig.remoteFolder))
+      .pipe(conn.dest(ftpConfig.remoteFolder))
+
+      .on("error", function(err) {
+        console.log(err.toString());
+
+        this.emit("end");
+      });
+  });
+
+  // Watch Scss files
+  watch([files.scssPath], scssTask).on("change", event => {
+    bs.reload();
+    return src([event], { base: ".", buffer: false })
+      .pipe(conn.newer(ftpConfig.remoteFolder))
+      .pipe(conn.dest(ftpConfig.remoteFolder))
+
+      .on("error", function(err) {
+        console.log(err.toString());
+
+        this.emit("end");
+      });
+  });
+}
+
+exports.default = series(deploy, watchFiles);
+exports.optimize = optimize;

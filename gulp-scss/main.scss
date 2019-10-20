@@ -1,14 +1,16 @@
 @charset "UTF-8";
 
 // Base files
-@import "./base";
+@import "./base/mixins";
+@import "./base/base";
 
 // Components Files
-@import "./components/_buttons";
+@import "./components/buttons";
+@import "./components/banner";
 
 // Layout files
-@import "./layout/_header";
-@import "./layout/_footer";
+@import "./layout/header";
+@import "./layout/footer";
 
 // Pages files
-@import "./pages/_home";
+@import "./pages/home";
