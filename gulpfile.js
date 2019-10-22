@@ -11,25 +11,22 @@ const gutil = require("gulp-util");
 const ftp = require("vinyl-ftp");
 const imagemin = require("gulp-imagemin");
 const uglify = require("gulp-uglify");
+const cache = require("gulp-cache");
 
 // FTP Configuration
 const ftpConfig = {
   host: "myHost",
-  user: "myUsername",
-  pass: "myPassword",
-  remoteFolder: "/wp-content/themes/myTheme",
-  siteUrl: "yoursite.dev"
+  user: "myUser",
+  pass: "myPass",
+  remoteFolder: "/wp-content/themes/bunney-website",
+  siteUrl: "your-url.dev"
 };
 
 var globs = [
-  "assets/**",
-  "gulp-js/**",
-  "gulp-scss/**",
-  "inc/**",
-  "js/**",
-  "languages/**",
-  "template-parts/**",
-  "*",
+  "./assets/**",
+  "./gulp-js/**",
+  "./gulp-scss/**",
+  "./*",
   "!/gulpfile.js",
   "!node_modules/**"
 ];
@@ -107,7 +104,7 @@ function watchFiles() {
   });
 
   // Watch Root files
-  watch(["./*"]).on("change", event => {
+  watch(["./**"]).on("change", event => {
     bs.reload();
     return src([event], { base: ".", buffer: false })
       .pipe(conn.newer(ftpConfig.remoteFolder))
